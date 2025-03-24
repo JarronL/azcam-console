@@ -471,8 +471,8 @@ def line(figure_number=1) -> None:
                 clear_data()
                 break
             time.sleep(0.3)
-    coefs = numpy.lib.polyfit(x, y, 1)
-    fit_y = numpy.lib.polyval(coefs, x)
+    coefs = numpy.polyfit(x, y, 1)
+    fit_y = numpy.polyval(coefs, x)
     plt.plot(x, fit_y, "b--")
 
     return

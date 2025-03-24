@@ -116,6 +116,9 @@ class DetChar(Tools, Report):
         Prepare a dataset for upload by creating an archive file.
         file.  Start in the _shipment folder.
         """
+        from azcam_itl import itlutils
+        from azcam_console import utils
+        import glob, shutil
 
         startdir = azcam.utils.curdir()
         shipdate = os.path.basename(startdir)
@@ -133,7 +136,7 @@ class DetChar(Tools, Report):
 
         # copy files to new folder and archive
         azcam.log(f"copying dataset to {idstring}")
-        currentfolder, newfolder = azcam_console.utils.make_file_folder(idstring)
+        currentfolder, newfolder = utils.make_file_folder(idstring)
 
         copy_files = glob.glob("*.pdf")
         for f in copy_files:
