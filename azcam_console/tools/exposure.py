@@ -467,7 +467,7 @@ class ExposureConsole(ConsoleTools):
         """
         Return JSON dictionary of a variety of system status data in one dictionary.
         """
-
+        import json
         status = azcam.db.api.command(f"exposure.get_status")
 
         return json.loads(status)
