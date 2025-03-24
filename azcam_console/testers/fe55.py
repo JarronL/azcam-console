@@ -134,11 +134,9 @@ class Fe55(Tester):
         azcam.db.tools["exposure"].test(0)
 
         # loop through images
-        for imgnum in range(self.number_images_acquire):
-            azcam.log(
-                "Image set %d of %d for %.3f seconds..."
-                % (imgnum + 1, self.number_images_acquire, self.exposure_time)
-            )
+        nimgs = self.number_images_acquire
+        for imgnum in range(nimgs):
+            azcam.log(f"Image set {imgnum + 1} of {nimgs} for {self.exposure_time:.3f} seconds...")
 
             # take bias image
             azcam.db.parameters.set_par("imagetype", "zero")
@@ -391,7 +389,7 @@ class Fe55(Tester):
 
             # trouble can happen here...
             if len(zevents) == 0:
-                azcam.log("No events in channel %d" % chan)
+                azcam.log(f"No events in channel {chan}")
                 self.event_data.append([0, 0, 0, 0, 0, 0, 0, 0])
                 self.hist_x.append(numpy.array(0))
                 self.hist_y.append(numpy.array(0))
@@ -521,8 +519,8 @@ class Fe55(Tester):
                 c = int(c)
                 z.append(events[r][c])
             self.z.append(numpy.array(z))
-            coefs = numpy.lib.polyfit(self.event_data[chan][1], z, 1)
-            fit_y = numpy.lib.polyval(coefs, list(range(first_col, last_col + 1)))
+            coefs = numpy.polyfit(self.event_data[chan][1], z, 1)
+            fit_y = numpy.polyval(coefs, list(range(first_col, last_col + 1)))
             self.fit_yhcte.append(fit_y)
 
             hslope = coefs[0]
@@ -539,8 +537,8 @@ class Fe55(Tester):
                 r = int(r)
                 c = int(c)
                 z.append(events[r][c])
-            coefs = numpy.lib.polyfit(self.event_data[chan][0], z, 1)
-            fit_y = numpy.lib.polyval(coefs, list(range(first_row, last_row + 1)))
+            coefs = numpy.polyfit(self.event_data[chan][0], z, 1)
+            fit_y = numpy.polyval(coefs, list(range(first_row, last_row + 1)))
             self.fit_yvcte.append(fit_y)
 
             vslope = coefs[0]
@@ -597,7 +595,10 @@ class Fe55(Tester):
             self.mean_sigmaTotal = numpy.array(self.mean_sigma).mean()
 
         # make plots
+        # try:
         self.plot()
+        # except Exception as message:
+        #     azcam.log(f"Error making plots: {message}")
 
         # copy analysis output to starting fold
         if startingfolder != subfolder:
@@ -896,24 +897,29 @@ class Fe55(Tester):
 
                     azcam_console.plot.plt.title("Chan %d" % chan)
 
-                    azcam_console.plot.plt.plot(
-                        self.event_data[chan][1], self.z[chan], "ro", markersize=2
-                    )
-                    azcam_console.plot.plt.plot(
-                        list(range(1, last_col + 1)), self.fit_yhcte[chan], "b-"
-                    )
-                    azcam_console.plot.plt.ylim(
-                        self.z[chan].min() - 100, self.z[chan].max() + 200
-                    )
-                    azcam_console.plot.plt.xlim(1, last_col)
+                    # Skip if no events
+                    zevents = self.event_data[chan][2]
+                    if zevents==0:
+                        azcam.log(f"No events in channel {chan}")
+                    else:
+                        azcam_console.plot.plt.plot(
+                            self.event_data[chan][1], self.z[chan], "ro", markersize=2
+                        )
+                        azcam_console.plot.plt.plot(
+                            list(range(1, last_col + 1)), self.fit_yhcte[chan], "b-"
+                        )
+                        azcam_console.plot.plt.ylim(
+                            self.z[chan].min() - 100, self.z[chan].max() + 200
+                        )
+                        azcam_console.plot.plt.xlim(1, last_col)
 
-                    s = "%0.6f" % (self.hcte[chan])
-                    azcam_console.plot.plt.annotate(
-                        s,
-                        xy=(0.15, 0.85),
-                        xycoords="axes fraction",
-                        bbox=dict(boxstyle="round,pad=0.1", fc="yellow", alpha=1.0),
-                    )
+                        s = f"{self.hcte[chan]:.6f}" #  "%0.6f" % (self.hcte[chan])
+                        azcam_console.plot.plt.annotate(
+                            s,
+                            xy=(0.15, 0.85),
+                            xycoords="axes fraction",
+                            bbox=dict(boxstyle="round,pad=0.1", fc="yellow", alpha=1.0),
+                        )
 
                     # ax.xaxis.set_ticks([])
                     # ax.yaxis.set_ticks([])
@@ -956,24 +962,29 @@ class Fe55(Tester):
 
                     azcam_console.plot.plt.title("Chan %d" % chan)
 
-                    azcam_console.plot.plt.plot(
-                        self.event_data[chan][0], self.z[chan], "ro", markersize=2
-                    )
-                    azcam_console.plot.plt.plot(
-                        list(range(1, last_row + 1)), self.fit_yvcte[chan], "b-"
-                    )
-                    azcam_console.plot.plt.ylim(
-                        self.z[chan].min() - 100, self.z[chan].max() + 200
-                    )
-                    azcam_console.plot.plt.xlim(1, last_row)
+                    # Skip if no events
+                    zevents = self.event_data[chan][2]
+                    if zevents==0:
+                        azcam.log(f"No events in channel {chan}")
+                    else:
+                        azcam_console.plot.plt.plot(
+                            self.event_data[chan][0], self.z[chan], "ro", markersize=2
+                        )
+                        azcam_console.plot.plt.plot(
+                            list(range(1, last_row + 1)), self.fit_yvcte[chan], "b-"
+                        )
+                        azcam_console.plot.plt.ylim(
+                            self.z[chan].min() - 100, self.z[chan].max() + 200
+                        )
+                        azcam_console.plot.plt.xlim(1, last_row)
 
-                    s = "%0.6f" % (self.vcte[chan])
-                    azcam_console.plot.plt.annotate(
-                        s,
-                        xy=(0.15, 0.85),
-                        xycoords="axes fraction",
-                        bbox=dict(boxstyle="round,pad=0.1", fc="yellow", alpha=1.0),
-                    )
+                        s = f"{self.vcte[chan]:.6f}" # "%0.6f" % (self.vcte[chan])
+                        azcam_console.plot.plt.annotate(
+                            s,
+                            xy=(0.15, 0.85),
+                            xycoords="axes fraction",
+                            bbox=dict(boxstyle="round,pad=0.1", fc="yellow", alpha=1.0),
+                        )
 
                     # ax.xaxis.set_ticks([])
                     # ax.yaxis.set_ticks([])
