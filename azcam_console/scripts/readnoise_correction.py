@@ -20,12 +20,16 @@ def readnoise_correction(system_noise: list[float] = [2.0]) -> list[float]:
         float: sensor_noise corrected for system_noise in DN
     """
 
+    import numpy as np
+
     measured_noise = azcam.db.tools["gain"].noise
 
     sensor_noise = []
     for chan, mn in enumerate(measured_noise):
         gain = azcam.db.tools["gain"].system_gain[chan]
-        sn = math.sqrt(mn ** 2 - system_noise[chan] ** 2)
+        sn = np.sqrt(mn ** 2 - system_noise[chan] ** 2)
+        if np.isnan(sn):
+            sn = 0.0
         sensor_noise.append(sn)
 
         print(

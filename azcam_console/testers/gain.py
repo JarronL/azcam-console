@@ -224,10 +224,12 @@ class Gain(Tester):
             # correct readnoise
             if self.system_noise_correction != []:
                 for chan in range(NumExt):
-                    rn = math.sqrt(
+                    rn = numpy.sqrt(
                         noise[chan] ** 2
                         - gain[chan] * self.system_noise_correction[chan] ** 2
                     )
+                    if numpy.isnan(rn):
+                        rn = 0.0
                     noise[chan] = rn
 
             self.system_gain = [a + b for a, b in zip(self.system_gain, gain)]

@@ -226,7 +226,9 @@ class Prnu(Tester):
                 mean = numpy.ma.mean(maskedimage)
 
             # account for signal shot noise
-            prnu = math.sqrt(stdev**2 - mean) / mean
+            prnu = numpy.sqrt(stdev**2 - mean) / mean
+            if numpy.isnan(prnu):
+                prnu = 0.0
 
             self.prnus[wavelength] = float(prnu)
             if self.allowable_deviation_from_mean != -1:
