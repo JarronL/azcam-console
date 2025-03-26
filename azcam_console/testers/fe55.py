@@ -172,6 +172,7 @@ class Fe55(Tester):
 
         # these arrays are for every chan, maybe for multiple images
         self.event_data = []
+        self.Events = []
         self.system_gain = []
         self.mean_fwhm = []  # array for each channel
         self.mean_sigma = []  # array for each channel
@@ -278,7 +279,8 @@ class Fe55(Tester):
         self.hist_y = []
         self.xevents = []
         self.yevents = []
-        self.z = []
+        self.zhcte = []
+        self.zvcte = []
         self.hcte = []
         self.vcte = []
         self.fit_yhcte = []
@@ -394,6 +396,19 @@ class Fe55(Tester):
                 self.hist_x.append(numpy.array(0))
                 self.hist_y.append(numpy.array(0))
                 self.system_gain.append(self.gain_estimate[chan])
+                self.read_noise.append(0)
+                self.Events.append(numpy.array(0))
+                self.zhcte.append(numpy.array(0))
+                self.zvcte.append(numpy.array(0))
+                self.fit_yhcte.append(numpy.array(0))
+                self.fit_yvcte.append(numpy.array(0))
+                self.hcte.append(0)
+                self.vcte.append(0)
+
+                if self.fit_psf:
+                    self.number_events.append(0)
+                    self.mean_fwhm.append(0)
+                    self.mean_sigma.append(0)
                 continue
 
             azcam.log("Removed %d of %d values" % (nevents - len(xevents), nevents))
@@ -442,11 +457,15 @@ class Fe55(Tester):
                 sm = numpy.array(sigmas).mean()
 
                 # from Jim Chiang for LSST
-                fm = math.sqrt(fm**2 - ((1.0 / 6.0) * self.pixel_size) ** 2)
-                sm = math.sqrt(sm**2 - ((1.0 / 6.0) * self.pixel_size) ** 2)
+                fm = numpy.sqrt(fm**2 - ((1.0 / 6.0) * self.pixel_size) ** 2)
+                sm = numpy.sqrt(sm**2 - ((1.0 / 6.0) * self.pixel_size) ** 2)
+                if numpy.isnan(fm):
+                    fm = 0.0
+                if numpy.isnan(sm):
+                    sm = 0.0
 
-                self.mean_fwhm = self.mean_fwhm.append(fm)
-                self.mean_sigma = self.mean_sigma.append(sm)
+                self.mean_fwhm.append(fm)
+                self.mean_sigma.append(sm)
 
                 s = "FWHM_%d = %5.3f (sigma = %.2f um)" % (chan, fm, sm)
                 azcam.log(s)
@@ -481,7 +500,7 @@ class Fe55(Tester):
             events = numpy.zeros([nrows, ncols])
             for i in range(len(xevents)):
                 events[int(yevents[i])][int(xevents[i])] = zevents[i]
-            self.Events = events
+            self.Events.append(events)
 
             # calc histogram
             bmin = int(numpy.array(zevents).min() - 100)
@@ -504,7 +523,9 @@ class Fe55(Tester):
             if self.system_noise_correction == []:
                 self.read_noise.append(noise * g)
             else:
-                rn = g * math.sqrt(noise**2 - self.system_noise_correction[chan] ** 2)
+                rn = g * numpy.sqrt(noise**2 - self.system_noise_correction[chan] ** 2)
+                if numpy.isnan(rn):
+                    rn = 0.0
                 self.read_noise.append(rn)
 
             # save for histogram plot
@@ -518,7 +539,7 @@ class Fe55(Tester):
                 r = int(r)
                 c = int(c)
                 z.append(events[r][c])
-            self.z.append(numpy.array(z))
+            self.zhcte.append(numpy.array(z))
             coefs = numpy.polyfit(self.event_data[chan][1], z, 1)
             fit_y = numpy.polyval(coefs, list(range(first_col, last_col + 1)))
             self.fit_yhcte.append(fit_y)
@@ -537,6 +558,7 @@ class Fe55(Tester):
                 r = int(r)
                 c = int(c)
                 z.append(events[r][c])
+            self.zvcte.append(numpy.array(z))
             coefs = numpy.polyfit(self.event_data[chan][0], z, 1)
             fit_y = numpy.polyval(coefs, list(range(first_row, last_row + 1)))
             self.fit_yvcte.append(fit_y)
@@ -783,7 +805,8 @@ class Fe55(Tester):
                         _, labels = azcam_console.plot.plt.xticks()
                         azcam_console.plot.plt.setp(labels, rotation=45)
 
-                    if 1:
+                    zevents = self.event_data[chan][2]
+                    if zevents>0:
                         # mark valid events on events plot
                         azcam_console.plot.plt.autoscale(False)
                         azcam_console.plot.plt.scatter(
@@ -903,13 +926,13 @@ class Fe55(Tester):
                         azcam.log(f"No events in channel {chan}")
                     else:
                         azcam_console.plot.plt.plot(
-                            self.event_data[chan][1], self.z[chan], "ro", markersize=2
+                            self.event_data[chan][1], self.zhcte[chan], "ro", markersize=2
                         )
                         azcam_console.plot.plt.plot(
                             list(range(1, last_col + 1)), self.fit_yhcte[chan], "b-"
                         )
                         azcam_console.plot.plt.ylim(
-                            self.z[chan].min() - 100, self.z[chan].max() + 200
+                            self.zhcte[chan].min() - 100, self.zhcte[chan].max() + 200
                         )
                         azcam_console.plot.plt.xlim(1, last_col)
 
@@ -968,13 +991,13 @@ class Fe55(Tester):
                         azcam.log(f"No events in channel {chan}")
                     else:
                         azcam_console.plot.plt.plot(
-                            self.event_data[chan][0], self.z[chan], "ro", markersize=2
+                            self.event_data[chan][0], self.zvcte[chan], "ro", markersize=2
                         )
                         azcam_console.plot.plt.plot(
                             list(range(1, last_row + 1)), self.fit_yvcte[chan], "b-"
                         )
                         azcam_console.plot.plt.ylim(
-                            self.z[chan].min() - 100, self.z[chan].max() + 200
+                            self.zvcte[chan].min() - 100, self.zvcte[chan].max() + 200
                         )
                         azcam_console.plot.plt.xlim(1, last_row)
 
