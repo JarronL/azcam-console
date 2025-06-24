@@ -166,6 +166,15 @@ class InstrumentConsole(ConsoleTools):
 
         return [float(x) for x in reply]
 
+    def use_mono_shutter(self, value: int = 0):
+        """
+        Set whether to use the monochromator shutter.
+        If value=1 (True), the monochromator shutter will be used.
+        If value=0 (False), the arduino shutter will be used.
+        """
+
+        return azcam.db.api.command(f"instrument.use_mono_shutter {value}")
+
     def set_shutter(self, state: int = 0, shutter_id: int = 0) -> Optional[str]:
         """
         Open or close a shutter.

@@ -29,13 +29,13 @@ class ControllerConsole(ConsoleTools):
 
         return azcam.db.api.command(f"set_shutter {state} {shutter_id}")
 
-    def set_shutter(self, state: int = 0, shutter_id: int = 0):
-        """
-        Open or close a shutter.
+    # def set_shutter(self, state: int = 0, shutter_id: int = 0):
+    #     """
+    #     Open or close a shutter.
 
-        :param state:
-        :param shutter_id: Shutter ID flag
+    #     :param state:
+    #     :param shutter_id: Shutter ID flag
 
-          * 0 => controller default shutter.
-          * 1 => instrument default shutter.
-        """
+    #       * 0 => controller default shutter.
+    #       * 1 => instrument default shutter.
+    #     """
