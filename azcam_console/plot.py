@@ -17,6 +17,8 @@ import azcam
 import azcam.utils
 import azcam.exceptions
 
+from .testers import robust_stats
+
 #: plot data - *azcam_console.plot.plotdata*
 plotdata = {
     "KeyPressed": "",
@@ -378,7 +380,7 @@ def plot_image(
     Plot an Azcam image buffer nicely.
 
     Args:
-        scale_type: one of (sdev, minmax, scaled, absolute).
+        scale_type: one of (sdev, medabsdev, minmax, scaled, absolute).
         scale_factor: scaling factor for 8-bit conversion.
         cmap: color map name.
     """
@@ -389,6 +391,12 @@ def plot_image(
     if scale_type == "sdev":
         s = azimage.buffer.std()
         m = azimage.buffer.mean()
+        z1 = m - scale_factor * s
+        z2 = m + scale_factor * s
+    elif scale_type == "medabsdev":
+        # robust standard deviation
+        s = robust_stats.medabsdev(azimage.buffer)
+        m = numpy.median(azimage.buffer)
         z1 = m - scale_factor * s
         z2 = m + scale_factor * s
     elif scale_type == "minmax":
