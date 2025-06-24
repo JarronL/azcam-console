@@ -353,12 +353,12 @@ class Ptc(Tester):
                     continue
                 if self.fit_min_dn != -1:
                     for x, m in enumerate(self.means):
-                        if m[chan] > self.fit_min:
+                        if m[chan] > self.fit_min_dn:
                             minfit1 = x
                             break
                 if self.fit_max_dn != -1:
                     for x, m in enumerate(self.means):
-                        if m[chan] > self.fit_max:
+                        if m[chan] > self.fit_max_dn:
                             maxfit1 = x - 1
                             break
                 if minfit1 > minfit:

@@ -468,7 +468,7 @@ def make_file_folder(
 
 def get_image_roi() -> list:
     """
-    Get the data and noise regions of interest in image image coordinates.
+    Get the data and noise regions of interest in image coordinates.
     Check for ROI's in the following order:
       - azcam.db.imageroi if defined
       - display.roi if defined

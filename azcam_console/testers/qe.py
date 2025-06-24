@@ -15,6 +15,7 @@ import azcam.fits
 import azcam.image
 import azcam_console.plot
 from azcam_console.testers.basetester import Tester
+from . import robust_stats
 
 
 class QE(Tester):
@@ -235,7 +236,7 @@ class QE(Tester):
             bin1 = int(azcam.fits.get_keyword(zerofilename, "CCDBIN1"))
             bin2 = int(azcam.fits.get_keyword(zerofilename, "CCDBIN2"))
             binning = bin1 * bin2
-            azcam.log(f"Binning is {binning} pixels")
+            azcam.log(f"Binning is {binning} pixels ({bin1}x{bin2})")
         except Exception as e:
             azcam.log(e)
             binning = 1  # assume no keyword means no binning
@@ -319,7 +320,9 @@ class QE(Tester):
             defects.mask_defects(self.masked_image)
 
             if len(self.qeroi) == 0:
-                qemean = self.masked_image.mean()
+                vals = self.masked_image.compressed()
+                qemean = robust_stats.mean(vals, Cut=10)
+                # qemean = self.masked_image.mean()
             else:
                 maskedimage = self.masked_image[
                     self.qeroi[2] : self.qeroi[3], self.qeroi[0] : self.qeroi[1]
@@ -352,7 +355,7 @@ class QE(Tester):
             self.means.append(qemean)
 
             self.wavelengths.append(wave)
-            self.qe[wave] = qe
+            self.qe[wave] = float(qe)
 
             SequenceNumber = SequenceNumber + 1
             if self.include_dark_images:
@@ -376,7 +379,7 @@ class QE(Tester):
                 self.grades[wave] = "UNDEFINED"
 
         if self.grade_sensor:
-            if "FAIL" in self.grades:
+            if "FAIL" in self.grades.values():
                 self.grade = "FAIL"
             else:
                 self.grade = "PASS"

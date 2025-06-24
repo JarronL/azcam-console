@@ -131,14 +131,19 @@ class Defects(Tester):
             dark.masked_image.mask, superflat.masked_image.mask
         )
 
-        fig = azcam_console.plot.plt.figure()
-        fignum = fig.number
-        azcam_console.plot.move_window(fignum)
-        azcam_console.plot.plt.title("Pixel Rejection Mask")
-        implot = azcam_console.plot.plt.imshow(self.defects_mask.astype("uint8"))
-        implot.set_cmap("gray")
-        azcam_console.plot.plt.show()
-        azcam_console.plot.save_figure(fignum, "PixelRejectionMask")
+        self.plot_defects_mask()
+
+        # fig = azcam_console.plot.plt.figure()
+        # fignum = fig.number
+        # azcam_console.plot.move_window(fignum)
+        # azcam_console.plot.plt.title("Pixel Rejection Mask")
+        # implot = azcam_console.plot.plt.imshow(
+        #     self.defects_mask.astype("uint8"),
+        #     origin="lower",
+        #     cmap="gray",
+        # )
+        # azcam_console.plot.plt.show()
+        # azcam_console.plot.save_figure(fignum, "PixelRejectionMask")
 
         # write mask as FITS
         maskfile = azcam.image.Image(superflat.superflat_filename)
@@ -294,8 +299,11 @@ class Defects(Tester):
         fignum = fig.number
         azcam_console.plot.move_window(fignum)
         azcam_console.plot.plt.title("Pixel Rejection Mask")
-        implot = azcam_console.plot.plt.imshow(self.defects_mask.astype("uint8"))
-        implot.set_cmap("gray")
+        implot = azcam_console.plot.plt.imshow(
+            self.defects_mask.astype("uint8"),
+            origin="lower",
+            cmap="gray",
+        )
         azcam_console.plot.plt.show()
         azcam_console.plot.save_figure(fignum, "PixelRejectionMask")
 

@@ -29,7 +29,7 @@ class GainMap(Tester):
         self.number_bias_images = 10
         self.overwrite = 0
         self.wavelength = -1  # -1 do not change wavelength
-        self.clear_arrray = 0
+        self.clear_array = 0
 
         self.data_file = "gainmap.txt"
         self.gainmap_fitsfile = "gainmap.fits"
@@ -72,7 +72,7 @@ class GainMap(Tester):
 
     def acquire(self):
         """
-        Acquire a series if bias image and a series of flat field images.
+        Acquire a series of bias image and a series of flat field images.
         These are used to generate a PTC point at every pixel.
         """
 
@@ -115,7 +115,7 @@ class GainMap(Tester):
             azcam.log(f"Current wavelength is {wave1} nm")
 
         # clear device
-        if self.clear_arrray:
+        if self.clear_array:
             azcam.db.tools["exposure"].test(0)
 
         # bias images
