@@ -160,6 +160,7 @@ class Superflat(Tester):
                 azcam.fits.colbias(nextfile, fit_order=self.fit_order)
 
             # "debias" correct with residuals after colbias
+            # Global offsets are taken care of later using gain.zero_mean
             if self.zero_correct:
                 debiased = azcam.db.tools["bias"].debiased_filename
                 biassub = "biassub.fits"
@@ -184,10 +185,8 @@ class Superflat(Tester):
         else:
             azcam.log("WARNING: no gain values found for scaling")
         self.superflat_image = azcam.image.Image(self.superflat_filename)
-        if self.overscan_correct:
-            zmean = None
-        else:
-            zmean = azcam.db.tools["gain"].zero_mean
+
+        zmean = None if self.overscan_correct else azcam.db.tools["gain"].zero_mean
         self.superflat_image.set_scaling(self.system_gain, zmean)
         self.superflat_image.assemble(1)
 
@@ -195,7 +194,10 @@ class Superflat(Tester):
         fig = azcam_console.plot.plt.figure()
         fignum = fig.number
         azcam_console.plot.move_window(fignum)
-        azcam_console.plot.plot_image(self.superflat_image)
+        azcam_console.plot.plot_image(self.superflat_image, 'medabsdev', 20, cmap='gray')
+        # Add a colorbar
+        cblabel = r"$\rm{e^{-}}$" if azcam.db.tools["gain"].is_valid else "DN"
+        azcam_console.plot.plt.colorbar(orientation="vertical", label=cblabel)
         azcam_console.plot.plt.title("Superflat Combined Image")
         azcam_console.plot.plt.show()
         azcam_console.plot.save_figure(fignum, self.superflat_image_plot)
@@ -277,8 +279,8 @@ class Superflat(Tester):
         azcam_console.plot.plt.title("Dark Pixel Rejection Mask")
 
         self.dark_mask = numpy.ma.getmaskarray(self.masked_image).astype("uint8")
-        implot = azcam_console.plot.plt.imshow(self.dark_mask)
-        implot.set_cmap("gray")
+        implot = azcam_console.plot.plt.imshow(self.dark_mask, origin="lower", 
+                                               cmap="gray", vmin=0, vmax=1)
         azcam_console.plot.plt.show()
         azcam_console.plot.save_figure(fignum, self.darkpixel_rejectionmask)  # png file
 

@@ -75,11 +75,17 @@ class DetChar(Tools, Report):
         Create a ID and summary report.
         """
 
+        import azcam_console.plot
+
         if not self.is_setup:
             self.setup()
 
         if len(self.report_comment) == 0:
             self.report_comment = azcam.utils.prompt("Enter report comment")
+
+        # Close plot windows
+        print("Closing any open plot windows.\n")
+        azcam_console.plot.close_figure("all")
 
         # get current date
         self.report_date = datetime.datetime.now().strftime("%b-%d-%Y")

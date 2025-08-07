@@ -16,8 +16,10 @@ import azcam.fits
 import azcam_console.plot
 from azcam_console.testers.basetester import Tester
 
+from . import robust_stats
+
 # constants
-CON1 = 2.0 * numpy.sqrt(2.0 * numpy.log(2.0))  # 2.355 for sigma <=> FWHM
+CON1 = 2.0 * math.sqrt(2.0 * math.log(2.0))  # 2.355 for sigma <=> FWHM
 
 
 class Fe55(Tester):
@@ -90,6 +92,8 @@ class Fe55(Tester):
         self.mean_fwhm = []  # mean FWHM for each channel
         self.mean_sigma = []  # mean sigma for each channel
 
+        self.first_col_fit = 1
+        self.first_row_fit = 1
         self.hcte_limit = 0.999990
         self.vcte_limit = 0.999990
         self.spec_by_cte = 0
@@ -513,7 +517,9 @@ class Fe55(Tester):
             # get gain from histogram max
             bin_max = numpy.where(N == N.max())
             maxvalue = bins[bin_max][0]
-            g = self.xray_lines["K-alpha"] / maxvalue
+            # c = numpy.bincount(zevents)
+            # maxvalue = numpy.argmax(c)
+            g = float(self.xray_lines["K-alpha"] / maxvalue)
             self.system_gain.append(g)
             s = "Gain_%d = %.2f" % (chan, g)
             azcam.log(s)
@@ -521,12 +527,12 @@ class Fe55(Tester):
             # correct readnoise
             noise = self.noise_dn[chan]
             if self.system_noise_correction == []:
-                self.read_noise.append(noise * g)
+                self.read_noise.append(float(noise * g))
             else:
                 rn = g * numpy.sqrt(noise**2 - self.system_noise_correction[chan] ** 2)
                 if numpy.isnan(rn):
                     rn = 0.0
-                self.read_noise.append(rn)
+                self.read_noise.append(float(rn))
 
             # save for histogram plot
             self.hist_x.append(bins[1:])
@@ -534,13 +540,15 @@ class Fe55(Tester):
 
             # HCTE plot with line fit
             z = []
-            for i, c in enumerate(self.event_data[chan][1]):  # loop over column number
+            cvals = numpy.asarray(self.event_data[chan][1])
+            for i, c in enumerate(cvals):  # loop over column number
                 r = self.event_data[chan][0][i]  # row number
-                r = int(r)
-                c = int(c)
-                z.append(events[r][c])
+                z.append(events[int(r)][int(c)])
             self.zhcte.append(numpy.array(z))
-            coefs = numpy.polyfit(self.event_data[chan][1], z, 1)
+            mask_fit = cvals >= self.first_col_fit
+            cfit = cvals[mask_fit]
+            zfit = numpy.asarray(z)[mask_fit]
+            coefs = numpy.polyfit(cfit, zfit, 1)
             fit_y = numpy.polyval(coefs, list(range(first_col, last_col + 1)))
             self.fit_yhcte.append(fit_y)
 
@@ -553,13 +561,15 @@ class Fe55(Tester):
 
             # VCTE line fit
             z = []
-            for i, r in enumerate(self.event_data[chan][0]):  # loop over row number
+            rvals = numpy.asarray(self.event_data[chan][0])
+            for i, r in enumerate(rvals):  # loop over row number
                 c = self.event_data[chan][1][i]  # col number
-                r = int(r)
-                c = int(c)
-                z.append(events[r][c])
+                z.append(events[int(r)][int(c)])
             self.zvcte.append(numpy.array(z))
-            coefs = numpy.polyfit(self.event_data[chan][0], z, 1)
+            mask_fit = rvals >= self.first_col_fit
+            rfit = rvals[mask_fit]
+            zfit = numpy.asarray(z)[mask_fit]
+            coefs = numpy.polyfit(rfit, zfit, 1)
             fit_y = numpy.polyval(coefs, list(range(first_row, last_row + 1)))
             self.fit_yvcte.append(fit_y)
 
@@ -925,11 +935,12 @@ class Fe55(Tester):
                     if zevents==0:
                         azcam.log(f"No events in channel {chan}")
                     else:
-                        azcam_console.plot.plt.plot(
-                            self.event_data[chan][1], self.zhcte[chan], "ro", markersize=2
+                        azcam_console.plot.plt.scatter(
+                            self.event_data[chan][1], self.zhcte[chan], 
+                            marker=".", color='C1', alpha=0.2, lw=0
                         )
                         azcam_console.plot.plt.plot(
-                            list(range(1, last_col + 1)), self.fit_yhcte[chan], "b-"
+                            list(range(1, last_col + 1)), self.fit_yhcte[chan], color='C0'
                         )
                         azcam_console.plot.plt.ylim(
                             self.zhcte[chan].min() - 100, self.zhcte[chan].max() + 200
@@ -990,11 +1001,12 @@ class Fe55(Tester):
                     if zevents==0:
                         azcam.log(f"No events in channel {chan}")
                     else:
-                        azcam_console.plot.plt.plot(
-                            self.event_data[chan][0], self.zvcte[chan], "ro", markersize=2
+                        azcam_console.plot.plt.scatter(
+                            self.event_data[chan][0], self.zvcte[chan], 
+                            marker=".", color='C3', alpha=0.1, lw=0
                         )
                         azcam_console.plot.plt.plot(
-                            list(range(1, last_row + 1)), self.fit_yvcte[chan], "b-"
+                            list(range(1, last_row + 1)), self.fit_yvcte[chan], color='C0'
                         )
                         azcam_console.plot.plt.ylim(
                             self.zvcte[chan].min() - 100, self.zvcte[chan].max() + 200
@@ -1124,7 +1136,7 @@ class Fe55(Tester):
         mean_x = (numpy.shape(data)[0] - 1) / 2
         mean_y = (numpy.shape(data)[1] - 1) / 2
 
-        fwhm = numpy.sqrt(numpy.sum((data > floor + height / 2.0).flatten()))
+        fwhm = float(numpy.sqrt(numpy.sum((data > floor + height / 2.0).flatten())))
         fwhm_1 = fwhm
         fwhm_2 = fwhm
         sig_1 = fwhm_1 / CON1

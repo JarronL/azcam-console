@@ -71,7 +71,7 @@ class ExposureConsole(ConsoleTools):
         If arguments are not specified, then previous exposure_time and imagetype values are used.
 
         :param exposure_time: the exposure time in seconds
-        :param image_type: type of exposure ('zero', 'object', 'flat', ...)
+        :param image_type: type of exposure ('zero', 'dark','object', 'flat', ...)
         :param image_title: image title, usually surrounded by double quotes
         """
 
@@ -86,7 +86,7 @@ class ExposureConsole(ConsoleTools):
         Make a complete exposure with immediate return to caller.
 
         :param exposure_time: the exposure time in seconds
-        :param image_type: type of exposure ('zero', 'object', 'flat', ...)
+        :param image_type: type of exposure ('zero', 'dark', 'object', 'flat', ...)
         :param image_title: image title, usually surrounded by double quotes
         """
 
@@ -102,7 +102,7 @@ class ExposureConsole(ConsoleTools):
         This is an advanced function.
 
         :param exposure_time: the exposure time in seconds
-        :param image_type: type of exposure ('zero', 'object', 'flat', ...)
+        :param image_type: type of exposure ('zero', 'dark', 'object', 'flat', ...)
         :param image_title: image title, usually surrounded by double quotes
         """
 

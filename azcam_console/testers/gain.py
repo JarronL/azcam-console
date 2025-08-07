@@ -10,7 +10,9 @@ import azcam.utils
 import azcam.fits
 import azcam_console.utils
 from azcam_console.testers.basetester import Tester
+from . import robust_stats
 
+import time
 
 class Gain(Tester):
     """
@@ -32,7 +34,7 @@ class Gain(Tester):
         self.include_dark_images = 0  # include dark images in acquire & analysis
         self.dark_frame = None
 
-        self.clear_arrray = 0
+        self.clear_array = 0
 
         self.readnoise_spec = -1  # read noise spec (max) in electrons
 
@@ -110,7 +112,7 @@ class Gain(Tester):
         azcam.db.parameters.set_par("imageoverwrite", 1)
 
         # clear device
-        if self.clear_arrray:
+        if self.clear_array:
             azcam.db.tools["exposure"].test(0)
 
         # set wavelength
@@ -151,6 +153,7 @@ class Gain(Tester):
                 ExposureTime, self.exposure_type, "PTC frame 1"
             )
             azcam.log("Image 1 finished")
+
             flat2filename = azcam.db.tools["exposure"].get_filename()
             self.image_flat2 = flat2filename
             azcam.db.tools["exposure"].expose(
@@ -224,7 +227,7 @@ class Gain(Tester):
             # correct readnoise
             if self.system_noise_correction != []:
                 for chan in range(NumExt):
-                    rn = numpy.sqrt(
+                    rn = math.sqrt(
                         noise[chan] ** 2
                         - gain[chan] * self.system_noise_correction[chan] ** 2
                     )
@@ -232,18 +235,21 @@ class Gain(Tester):
                         rn = 0.0
                     noise[chan] = rn
 
-            self.system_gain = [a + b for a, b in zip(self.system_gain, gain)]
-            self.noise = [a + b for a, b in zip(self.noise, noise)]
-            self.mean = [a + b for a, b in zip(self.system_gain, mean)]
-            self.sdev = [a + b for a, b in zip(self.sdev, sdev)]
+            self.system_gain = [float(a + b) for a, b in zip(self.system_gain, gain)]
+            self.noise = [float(a + b) for a, b in zip(self.noise, noise)]
+            self.mean = [float(a + b) for a, b in zip(self.system_gain, mean)]
+            self.sdev = [float(a + b) for a, b in zip(self.sdev, sdev)]
 
             # get zero mean for Offset
             zeromean = azcam.fits.mean(zerofilename, self.roi[1])
+            # Adds the mean of the bias image to the zero mean to get offset in DN
+            # for each channel. Will get divided by number of files later.
             self.zero_mean = [a + b for a, b in zip(self.zero_mean, zeromean)]
 
-            azcam.log("Channel system_gain[e/DN] Noise[e]")
+            azcam.log("Channel system_gain[e/DN] Noise[e] ZeroMean[DN]")
+            azcam.log("--------------------------------------------------")
             for i in range(len(self.system_gain)):
-                azcam.log(f"{i:02d}      {gain[i]:0.02f}             {noise[i]:0.01f}")
+                azcam.log(f"{i:02d} {gain[i]:9.2f} {noise[i]:16.1f} {zeromean[i]:11.1f}")
 
             SequenceNumber = SequenceNumber + 1
             zerofilename = rootname + f"{SequenceNumber:04d}"
@@ -365,10 +371,10 @@ class Gain(Tester):
 
         # get stats in same ROI of each section
         roi = self.roi[0]
-        for ext in range(first_ext, last_ext):
-            ffci_sdev.append(
-                data_ffci[ext][roi[2] : roi[3], roi[0] : roi[1]].std() / math.sqrt(2.0)
-            )
+        for ext in range(first_ext, last_ext):                
+            data = data_ffci[ext][roi[2]:roi[3], roi[0]:roi[1]]
+            stdev = float(robust_stats.std(data) / math.sqrt(2.0))
+            ffci_sdev.append(stdev)
             try:
                 g = flat_mean[ext] / (ffci_sdev[ext] ** 2 - zsdev[ext - 1] ** 2)
                 if numpy.isnan(g):
@@ -399,7 +405,11 @@ class Gain(Tester):
             if self.system_gain == []:
                 self.analyze()
         else:
-            self.read_datafile()
+            try:
+                self.read_datafile()
+            except FileNotFoundError:
+                # Acquire and analyze gain if no data file exists
+                self.find()
 
         return self.system_gain
 
@@ -408,7 +418,7 @@ class Gain(Tester):
         Make report files.
         """
 
-        lines = ["# Gain Analysis"]
+        lines = ["# Initial Gain Estimation"]
 
         if self.system_noise_correction == []:
             s = "Read Noise in electrons is not system noise corrected  "

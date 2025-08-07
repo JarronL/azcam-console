@@ -11,6 +11,7 @@ import azcam.fits
 import azcam_console.utils
 import azcam.image
 from azcam_console.testers.basetester import Tester
+from . import robust_stats
 
 
 class Prnu(Tester):
@@ -151,10 +152,14 @@ class Prnu(Tester):
         _, StartingSequence = azcam_console.utils.find_file_in_sequence(rootname)
         SequenceNumber = StartingSequence
 
-        # bias image (first in sequence)
+        # bias image (nominally first in sequence)
         zerofilename = rootname + "%04d" % StartingSequence
         zerofilename = os.path.join(currentfolder, zerofilename) + ".fits"
         zerofilename = azcam.utils.make_image_filename(zerofilename)
+
+        numext, _, _ = azcam.fits.get_extensions(zerofilename)
+        if numext == 0:
+            numext = 1
 
         if self.bias_image_in_sequence:
             SequenceNumber += 1
@@ -168,7 +173,6 @@ class Prnu(Tester):
             self.system_gain = azcam.db.tools["gain"].system_gain
         else:
             azcam.log("WARNING: no gain values found for scaling")
-            numext, _, _ = azcam.fits.get_extensions(zerofilename)
             self.system_gain = numext * [1.0]
 
         # loop over files
@@ -183,6 +187,7 @@ class Prnu(Tester):
                 azcam.fits.colbias(nextfile, fit_order=self.fit_order)
 
             # "debias" correct with residuals after colbias
+            # Global offsets are taken care of later using gain.zero_mean
             if self.zero_correct:
                 debiased = azcam.db.tools["bias"].debiased_filename
                 biassub = "biassub.fits"
@@ -193,12 +198,8 @@ class Prnu(Tester):
             # scale to electrons by system gain
             prnuimage = azcam.image.Image(nextfile)
 
-            if self.overscan_correct:
-                prnuimage.set_scaling(self.system_gain, None)
-            else:
-                prnuimage.set_scaling(
-                    self.system_gain, azcam.db.tools["gain"].zero_mean
-                )
+            zmean = None if self.overscan_correct else azcam.db.tools["gain"].zero_mean
+            prnuimage.set_scaling(self.system_gain, zmean)
             prnuimage.assemble(1)
             prnuimage.save_data_format = -32
             prnuimage.write_file("prnu_%d.fits" % wavelength, 6)
@@ -214,21 +215,85 @@ class Prnu(Tester):
             defects.mask_edges(self.masked_image)
 
             # optionally use ROI
-            if len(self.roi_prnu) == 0:
-                stdev = numpy.ma.std(self.masked_image)
-                mean = numpy.ma.mean(self.masked_image)
-            else:
-                maskedimage = self.masked_image[
-                    self.roi_prnu[2] : self.roi_prnu[3],
-                    self.roi_prnu[0] : self.roi_prnu[1],
-                ]
+            if len(self.roi_prnu) == 1:
+                x1, x2, y1, y2 = self.roi_prnu
+                maskedimage = self.masked_image[y1:y2, x1:x2]
                 stdev = numpy.ma.std(maskedimage)
                 mean = numpy.ma.mean(maskedimage)
 
-            # account for signal shot noise
-            prnu = numpy.sqrt(stdev**2 - mean) / mean
-            if numpy.isnan(prnu):
-                prnu = 0.0
+                # account for signal shot noise
+                prnu = math.sqrt(stdev**2 - mean) / mean
+                if numpy.isnan(prnu):
+                    prnu = 0.0
+            else:
+                # stdev = numpy.ma.std(self.masked_image)
+                # mean = numpy.ma.mean(self.masked_image)
+                # azcam.log("PRNU: mean = %f, stdev = %f" % (mean, stdev))
+
+                # vals = self.masked_image.compressed()
+                # stdev = robust_stats.medabsdev(vals)
+                # mean = numpy.median(vals)
+                # azcam.log("Robust PRNU: mean = %f, stdev = %f" % (mean, stdev))
+
+                # PRNU for each channel
+                ys, xs = self.masked_image.shape
+                if numext == 1:
+                    x1_arr = [0]
+                    x2_arr = [xs]
+                    y1_arr = [0]
+                    y2_arr = [ys]
+                elif numext == 2:
+                    x1_arr = [0, xs//2]
+                    x2_arr = [xs//2, xs]
+                    y1_arr = [0, 0]
+                    y2_arr = [ys, ys]
+                elif numext == 4:
+                    x1_arr = [0, 0, xs//2, xs//2]
+                    x2_arr = [xs//2, xs//2, xs, xs]
+                    y1_arr = [0, ys//2, 0, ys//2]
+                    y2_arr = [ys//2, ys, ys//2, ys]
+                else:
+                    # Assume channels are evenly split on top and bottom
+                    x1_arr = numpy.linspace(0, xs, numext//2 + 1)[:-1].astype(int)
+                    x1_arr = 2 * x1_arr.to_list()  # double for top and bottom
+                    x2_arr = numpy.linspace(0, xs, numext//2 + 1)[1:].astype(int)
+                    x2_arr = 2 * x2_arr.to_list()  # double for top and bottom
+                    y1_arr = (numext//2) * [0]     + (numext//2) * [ys//2]
+                    y2_arr = (numext//2) * [ys//2] + (numext//2) * [ys]
+
+
+                # x1_arr = [0, 0, 2048, 2048]
+                # x2_arr = [2048, 2048, 4096, 4096]
+                # y1_arr = [0, 2048, 0, 2048]
+                # y2_arr = [2048, 4096, 2048, 4096]
+                prnu_arr = []
+                for i in range(numext):
+                    x1 = x1_arr[i]
+                    x2 = x2_arr[i]
+                    y1 = y1_arr[i]
+                    y2 = y2_arr[i]
+                    maskedimage = self.masked_image[y1:y2, x1:x2]
+                    # stdev = numpy.ma.std(maskedimage)
+                    # mean = numpy.ma.mean(maskedimage)
+                    # prnu = math.sqrt(stdev**2 - mean) / mean
+                    # azcam.log(
+                    #     "  PRNU: mean = %f, stdev = %f, prnu = %f"
+                    #     % (mean, stdev, prnu)
+                    # )
+                    vals = maskedimage.compressed()
+                    stdev = robust_stats.medabsdev(vals)
+                    mean = numpy.median(vals)
+                    prnu = math.sqrt(stdev**2 - mean) / mean
+                    prnu_arr.append(prnu)
+                    # azcam.log(
+                    #     "  Robust PRNU: mean = %f, stdev = %f, prnu = %f"
+                    #     % (mean, stdev, prnu)
+                    # )
+
+                prnu = prnu_arr[0] if numext==1 else numpy.nanmean(prnu_arr)
+                if numpy.isnan(prnu):
+                    prnu = 0.0
+
 
             self.prnus[wavelength] = float(prnu)
             if self.allowable_deviation_from_mean != -1:

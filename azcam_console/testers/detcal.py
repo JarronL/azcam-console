@@ -107,17 +107,16 @@ class DetCal(Tester):
                 et = self.exposures[wave]
             except Exception:
                 et = 1.0
+
             while doloop:
                 azcam.db.parameters.set_par("imagetype", self.exposure_type)
-                azcam.log(f"Taking flat for {et:0.3f} seconds")
+                azcam.log(f"Taking {self.exposure_type} for {et:0.3f} seconds")
                 flatfilename = azcam.db.tools["exposure"].get_filename()
-                azcam.db.tools["exposure"].expose(et, self.exposure_type, "detcal flat")
+                azcam.db.tools["exposure"].expose(et, self.exposure_type, f"detcal {self.exposure_type}")
 
                 # get counts
-                flatmean = numpy.array(azcam.fits.mean(flatfilename)) - numpy.array(
-                    self.zero_mean
-                )
-                flatmean = flatmean.mean()
+                fmean_list = azcam.fits.median(flatfilename)
+                flatmean = (numpy.array(fmean_list) - numpy.array(self.zero_mean)).mean()
                 azcam.log(f"Mean signal at {wave} nm is {flatmean:0.0f} DN")
 
                 if flatmean > self.mean_count_goal * self.range_factor:
@@ -129,13 +128,10 @@ class DetCal(Tester):
                     azcam.log(f"--> Retest at {et:0.3f} seconds")
                     continue
 
-                self.mean_counts[wave] = flatmean / et / binning
-                self.mean_electrons[wave] = self.mean_counts[wave] * numpy.array(
-                    self.system_gain
-                )
+                self.mean_counts[wave] = numpy.mean(flatmean / et / binning)
+                self.mean_electrons[wave] = numpy.mean(self.mean_counts[wave] * 
+                                                       numpy.array(self.system_gain))
 
-                self.mean_counts[wave] = self.mean_counts[wave].mean()
-                self.mean_electrons[wave] = self.mean_electrons[wave].mean()
                 doloop = 0
 
         # define dataset

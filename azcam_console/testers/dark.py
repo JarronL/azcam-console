@@ -11,7 +11,7 @@ import azcam.image
 import azcam_console.plot
 from azcam_console.plot import plt
 from azcam_console.testers.basetester import Tester
-
+from . import robust_stats
 
 class Dark(Tester):
     """
@@ -286,6 +286,20 @@ class Dark(Tester):
         defects = azcam.db.tools["defects"]
         defects.mask_edges(self.masked_image)
 
+        # Auto select bright pixel rejection threshold at 10-sigma above median dark signal
+        if self.bright_pixel_reject == -1:
+            # calculate mean and std of dark signal
+            vals = self.masked_image.compressed()
+            med =  numpy.median(vals)
+            sig = robust_stats.medabsdev(vals)
+
+            # set bright pixel rejection threshold to 3 sigma above mean
+            vmax1 = med + 10 * sig
+            vmax2 = 1.1 * med * self.histscale_factor * self.units_scale
+            self.bright_pixel_reject = numpy.max([vmax1, vmax2])
+            s = f"Auto setting bright pixel rejection threshold to {self.bright_pixel_reject:0.03f} e/pix/sec"
+            azcam.log(s)
+
         # reject bright pixels from dark signal analysis
         if self.bright_pixel_reject != -1:
             s = f"Rejecting bright pixels above {self.bright_pixel_reject:0.03f} e/pix/sec"
@@ -309,18 +323,21 @@ class Dark(Tester):
 
         # get valid data as 1D array
         self.validdata = self.masked_image.compressed()
+        azcam.log(f"Number of valid pixels: {self.validdata.size}")
 
-        self.mean_dark_signal = numpy.ma.mean(self.masked_image)
-        self.sdev_dark_signal = numpy.ma.std(self.masked_image)
-        self.median_dark_signal = numpy.ma.median(self.masked_image)
+        self.mean_dark_signal = robust_stats.mean(self.validdata)
+        self.sdev_dark_signal = robust_stats.std(self.validdata)
+        # self.mean_dark_signal = numpy.ma.mean(self.masked_image)
+        # self.sdev_dark_signal = numpy.ma.std(self.masked_image)
+        self.median_dark_signal = numpy.median(self.validdata)
 
         # PASS or FAIL on mean dark signal if specified
         azcam.log(
-            f"Mean dark signal is {(self.mean_dark_signal*self.units_scale):0.01f} {self.units_text}"
+            f"Mean dark signal is {(self.mean_dark_signal*self.units_scale):0.03f} {self.units_text}"
         )
         if self.median_dark_signal != -1:
             azcam.log(
-                f"Median dark signal is {(self.median_dark_signal*self.units_scale):0.01f} {self.units_text}"
+                f"Median dark signal is {(self.median_dark_signal*self.units_scale):0.03f} {self.units_text}"
             )
         if self.mean_dark_spec != -1:
             if self.mean_dark_signal > self.mean_dark_spec:
@@ -329,7 +346,7 @@ class Dark(Tester):
                 self.dark_signal_grade = "PASS"
         if self.mean_dark_spec > 0:
             azcam.log(
-                f"Spec for mean dark signal is {(self.mean_dark_spec*self.units_scale):0.01f} {self.units_text}"
+                f"Spec for mean dark signal is {(self.mean_dark_spec*self.units_scale):0.03f} {self.units_text}"
             )
 
         if self.grade_dark_signal:
@@ -366,8 +383,7 @@ class Dark(Tester):
         azcam_console.plot.move_window(fignum)
         azcam_console.plot.plt.title("Bright Pixel Rejection Mask")
         self.bright_mask = numpy.ma.getmask(self.masked_image).astype("uint8")
-        implot = azcam_console.plot.plt.imshow(self.bright_mask)
-        implot.set_cmap("gray")
+        azcam_console.plot.plt.imshow(self.bright_mask, origin="lower", cmap="gray")
         azcam_console.plot.plt.show()
         azcam_console.plot.save_figure(fignum, "BrightPixelRejectionMask")
 
@@ -435,7 +451,10 @@ class Dark(Tester):
         fig = plt.figure()
         fignum = fig.number
         azcam_console.plot.move_window(fignum)
-        azcam_console.plot.plot_image(self.dark_image, "sdev", 10.0)
+        azcam_console.plot.plot_image(self.dark_image, "medabsdev", 20.0)
+        # Add a colorbar
+        cblabel = r"$\rm{e^{-}/sec}$" if azcam.db.tools["gain"].is_valid else "DN/sec"
+        azcam_console.plot.plt.colorbar(orientation="vertical", label=cblabel)
         plt.title("Combined Dark Image")
         plt.show()
         azcam_console.plot.save_figure(fignum, self.darkimage_plot)

@@ -5,6 +5,8 @@ import time
 import numpy
 import matplotlib.patches as mpatches
 
+from astropy.io import fits as pyfits
+
 import azcam
 import azcam.utils
 import azcam.fits
@@ -12,6 +14,8 @@ import azcam.image
 import azcam_console.utils
 from azcam_console.plot import plt, save_figure
 from azcam_console.testers.basetester import Tester
+
+from . import robust_stats
 
 
 class Bias(Tester):
@@ -169,7 +173,7 @@ class Bias(Tester):
         self.bias_images = []
         for frame in self.bias_filenames:
             im = azcam.image.Image(frame)
-            im.assemble(1)  # assembled an trim overscan
+            im.assemble(1)  # assemble and trim overscan
             self.bias_images.append(im)
 
         # indices are: [imagenum][y][x]
@@ -183,7 +187,7 @@ class Bias(Tester):
         # get list of status for each ext
         self.mean = self.mean_image.mean()
         self.median = self.median_image.mean()
-        self.sdev = self.sdev_image.mean()
+        self.sdev = robust_stats.medabsdev(self.sdev_image).mean()
         self.mean_noise = self.sdev_image.mean()
         self.median_noise = numpy.median(self.sdev_image)
 
@@ -204,8 +208,21 @@ class Bias(Tester):
             azcam.fits.colbias(self.debiased_filename, self.fit_order)
         else:
             azcam.fits.arith(
-                self.superbias_filename, "-", self.mean, self.debiased_filename
+                self.superbias_filename, "-", self.mean, self.debiased_filename, "float32"
             )
+
+        # Create overscan correction version of mean_image and median_image
+        bias_images_temp = []
+        for frame in self.bias_filenames:
+            im = azcam.image.Image("")
+            im.read_file(frame, colbias=True)
+            im.assemble(1)  # assemble and trim overscan
+            bias_images_temp.append(im.buffer)
+
+        # indices are: [imagenum][y][x]
+        imcube = numpy.stack(bias_images_temp)
+        self.mean_image = numpy.mean(imcube, axis=0)
+        self.median_image = numpy.median(imcube, axis=0)
 
         self.plot()
 
@@ -336,32 +353,40 @@ class Bias(Tester):
         # plot mean image
         fig, ax = plt.subplots()
         fignum = fig.number
-        plt.title("Mean Image")
+        plt.title("Mean Image (Overscan Corrected)")
         azcam_console.plot.move_window(fignum)
-        im = plt.imshow(
-            self.mean_image,
-            cmap="gray",
-            vmin=self.mean - self.sdev * self.imageplot_scale,
-            vmax=self.mean + self.sdev * self.imageplot_scale,
+        im = self.mean_image
+        offset = numpy.median(im)
+        pim = ax.imshow(
+            im,
+            cmap="magma",
+            vmin=offset - self.mean_noise * self.imageplot_scale,
+            vmax=offset + self.mean_noise * self.imageplot_scale,
             interpolation="nearest",
+            origin="lower",
         )
-        plt.tight_layout()
+        cbar = plt.colorbar(pim, ax=ax, orientation="vertical", label="DN")
+        fig.tight_layout()
         plt.show()
         save_figure(fignum, self.mean_plot)
 
         # plot median image
         fig, ax = plt.subplots()
         fignum = fig.number
-        plt.title("Median Image")
+        plt.title("Median Image (Overscan Corrected)")
         azcam_console.plot.move_window(fignum)
-        im = plt.imshow(
-            self.median_image,
-            cmap="gray",
-            vmin=self.median - self.sdev * self.imageplot_scale,
-            vmax=self.median + self.sdev * self.imageplot_scale,
+        im = self.median_image
+        offset = numpy.median(im)
+        pim = ax.imshow(
+            im,
+            cmap="magma",
+            vmin=offset - self.mean_noise * self.imageplot_scale,
+            vmax=offset + self.mean_noise * self.imageplot_scale,
             interpolation="nearest",
+            origin="lower",
         )
-        plt.tight_layout()
+        cbar = plt.colorbar(pim, ax=ax, orientation="vertical", label="DN")
+        fig.tight_layout()
         plt.show()
         save_figure(fignum, self.median_plot)
 
@@ -370,14 +395,18 @@ class Bias(Tester):
         fignum = fig.number
         plt.title("Noise (sdev) Image")
         azcam_console.plot.move_window(fignum)
-        im = plt.imshow(
-            self.sdev_image,
-            cmap="gray",
+        im = self.sdev_image
+        offset = numpy.median(im)
+        pim = ax.imshow(
+            im,
+            cmap="magma",
             vmin=0.0,
-            vmax=self.sdev * 5.0,
+            vmax=offset + self.sdev * 3.0,
             interpolation="nearest",
+            origin="lower",
         )
-        plt.tight_layout()
+        cbar = plt.colorbar(pim, ax=ax, orientation="vertical", label="DN")
+        fig.tight_layout()
         plt.show()
         save_figure(fignum, self.sdev_plot)
 
