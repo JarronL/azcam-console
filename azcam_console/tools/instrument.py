@@ -182,6 +182,8 @@ class InstrumentConsole(ConsoleTools):
             state: shutter state, 0 for close and 1 for open
             shutter_id: Shutter ID flag
 
+                * 0 => controller (e.g., Archon) default shutter.
+                * 1 => instrument (e.g., MS257)default shutter.
         """
 
         return azcam.db.api.set_shutter(state, shutter_id)
